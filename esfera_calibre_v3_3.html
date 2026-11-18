@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Medida de esfera – Pie de rey</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#ecf0f1;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{background:#1a3a5c;color:white;padding:7px 16px;font-size:.92em;font-weight:bold;flex-shrink:0}
+header span{font-size:.73em;font-weight:normal;opacity:.8;margin-left:10px}
+.main{display:flex;flex:1;overflow:hidden}
+
+/* IZQUIERDA */
+.left{width:55%;background:#fff;border-right:2px solid #bdc3c7;display:flex;flex-direction:column;align-items:center;padding:10px 8px;gap:8px;overflow:hidden}
+.left h3{font-size:.8em;color:#555}
+#sphere-canvas{border:1px solid #ddd;border-radius:6px;background:#fafcff}
+.caliper-wrap{width:100%;position:relative}
+#caliper-canvas{display:block;border:1px solid #bbb;border-radius:5px;background:#f9f7f0;cursor:ew-resize;width:100%}
+.caliper-hint{font-size:.72em;color:#888;text-align:center;margin-top:2px}
+.left-btns{display:flex;gap:10px;align-items:center}
+.btn{border:none;padding:7px 16px;border-radius:18px;cursor:pointer;font-size:.85em;font-weight:bold;color:white}
+.btn-girar{background:#27ae60}.btn-girar:hover{background:#1e8449}
+.btn-sel{background:#e74c3c;font-size:.88em}.btn-sel:hover{background:#c0392b}
+.btn-confirmar{background:#8e44ad;font-size:.88em}.btn-confirmar:hover{background:#7d3c98}
+.meas-info{font-size:.78em;color:#666;text-align:center}
+/* Panel de incertidumbre */
+#inc-panel{background:#fdf3f8;border:1.5px solid #d7a8d0;border-radius:8px;padding:9px 14px;width:100%;display:none;text-align:center}
+#inc-panel .inc-title{font-size:.82em;color:#6c3483;font-weight:bold;margin-bottom:6px}
+#inc-panel .inc-row{display:flex;align-items:center;justify-content:center;gap:10px}
+#inc-panel .inc-row label{font-size:.8em;color:#555}
+#inc-val{background:#8e44ad;color:white;padding:3px 10px;border-radius:4px;font-size:.88em;min-width:60px;text-align:center}
+
+/* DERECHA */
+.right{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:9px}
+.card{background:white;border-radius:8px;padding:11px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.card h3{font-size:.82em;color:#1a3a5c;margin-bottom:7px;border-bottom:1px solid #eee;padding-bottom:3px}
+table{width:100%;border-collapse:collapse;font-size:.79em}
+th{background:#f0f4f8;padding:4px 5px;text-align:center;color:#555;font-weight:600}
+td{padding:4px 5px;text-align:center;border-bottom:1px solid #f0f0f0}
+.td-val{font-weight:bold;color:#2980b9}
+.td-inc input{width:55px;accent-color:#e74c3c}
+.res-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.res-item{background:#f8f9fa;border-radius:6px;padding:7px;text-align:center}
+.res-item .lbl{font-size:.7em;color:#777}
+.res-item .num{font-size:1.05em;font-weight:bold;color:#1a3a5c}
+.res-item.vol .num{color:#8e44ad}
+.res-item.err .num{color:#c0392b}
+.sf-row{display:flex;align-items:center;gap:7px;margin-top:3px}
+.sf-row label{font-size:.76em;color:#555;flex:1}
+.sf-row input{width:70px;accent-color:#8e44ad}
+.sf-row span{font-size:.8em;font-weight:bold;color:#8e44ad;width:28px}
+.final-box{margin-top:7px;background:#f0eaf8;border-radius:6px;padding:7px;text-align:center;font-size:.88em}
+</style>
+</head>
+<body>
+<header>🔬 Medida del diámetro de una esfera con pie de rey
+  <span>Física Experimental · Universidad · arrastra el nonio para medir</span>
+</header>
+<div class="main">
+
+<!-- IZQUIERDA -->
+<div class="left">
+  <h3>Esfera (el calibre la rodea — ajusta el nonio)</h3>
+  <canvas id="sphere-canvas" width="320" height="160"></canvas>
+  <div class="caliper-wrap">
+    <canvas id="caliper-canvas" width="520" height="170"></canvas>
+    <div class="caliper-hint">↔ Arrastra la escala principal para ajustar el calibre · Lee la escala y declara tu medida abajo</div>
+  </div>
+  <!-- Deslizador de lectura: el alumno declara lo que lee -->
+  <div id="reading-row" style="display:flex;align-items:center;gap:8px;width:100%;padding:0 4px">
+    <label style="font-size:.8em;color:#1a5276;white-space:nowrap;font-weight:bold">Tu lectura:</label>
+    <input type="range" id="slider-read" min="15" max="35" step="0.05" value="15.00"
+           oninput="updateReading()" style="flex:1;accent-color:#1a5276">
+    <div id="val-read" style="background:#1a5276;color:white;padding:3px 10px;border-radius:4px;font-size:.88em;min-width:78px;text-align:center">15,00 mm</div>
+  </div>
+  <div class="left-btns">
+    <button class="btn btn-girar" id="btn-girar" onclick="girarEsfera()">🔄 Girar esfera</button>
+    <button class="btn btn-sel" id="btn-sel" onclick="seleccionarMedida()">✔ Seleccionar medida <span id="med-num">1</span>/5</button>
+  </div>
+  <!-- Panel de incertidumbre (aparece tras seleccionar) -->
+  <div id="inc-panel">
+    <div class="inc-title">Selecciona la incertidumbre de esta medida:</div>
+    <div class="inc-row">
+      <label>Incertidumbre:</label>
+      <input type="range" id="slider-inc" min="0.01" max="1.00" step="0.01" value="0.05"
+             oninput="document.getElementById('inc-val').textContent=parseFloat(this.value).toFixed(2)+' mm'">
+      <div id="inc-val">0,05 mm</div>
+      <button class="btn btn-confirmar" onclick="confirmarMedida()">Confirmar →</button>
+    </div>
+  </div>
+  <div class="meas-info" id="meas-info">Medida activa: <b>1</b> de 5 — ajusta el nonio y lee la escala</div>
+</div>
+
+<!-- DERECHA -->
+<div class="right">
+
+  <div class="card">
+    <h3>📋 Medidas tomadas</h3>
+    <table>
+      <tr><th>#</th><th>Diámetro leído (mm)</th><th>Incertidumbre (mm)</th></tr>
+      <tr><td>1</td><td class="td-val" id="v1">—</td><td><span id="inc1v">—</span></td></tr>
+      <tr><td>2</td><td class="td-val" id="v2">—</td><td><span id="inc2v">—</span></td></tr>
+      <tr><td>3</td><td class="td-val" id="v3">—</td><td><span id="inc3v">—</span></td></tr>
+      <tr><td>4</td><td class="td-val" id="v4">—</td><td><span id="inc4v">—</span></td></tr>
+      <tr><td>5</td><td class="td-val" id="v5">—</td><td><span id="inc5v">—</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card" id="card-res" style="display:none">
+    <h3>📊 Resultados</h3>
+    <div class="res-grid">
+      <div class="res-item"><div class="lbl">Diámetro medio</div><div class="num" id="res-d">—</div></div>
+      <div class="res-item"><div class="lbl">Desv. estándar media</div><div class="num" id="res-s">—</div></div>
+      <div class="res-item"><div class="lbl">Incertidumbre Δd</div><div class="num" id="res-dd">—</div></div>
+      <div class="res-item vol"><div class="lbl">Volumen V (cm³)</div><div class="num" id="res-v">—</div></div>
+      <div class="res-item err"><div class="lbl">Incertidumbre ΔV (cm³)</div><div class="num" id="res-dv">—</div></div>
+    </div>
+    <div style="margin-top:9px">
+      <div class="sf-row">
+        <label>Cifras significativas del volumen:</label>
+        <input type="range" id="sf-v" min="1" max="5" step="1" value="3" oninput="actualizarCS()">
+        <span id="sf-vv">3</span>
+      </div>
+      <div class="sf-row">
+        <label>Cifras significativas de ΔV:</label>
+        <input type="range" id="sf-dv" min="1" max="3" step="1" value="1" oninput="actualizarCS()">
+        <span id="sf-dvv">1</span>
+      </div>
+      <div class="final-box">
+        <b>Resultado final:</b>
+        V = (<span id="vred">—</span> ± <span id="dvred">—</span>) cm³
+      </div>
+    </div>
+  </div>
+
+</div><!-- /right -->
+</div><!-- /main -->
+
+<script>
+// ── Estado global ──────────────────────────────────────────────────
+var dBase = 22 + Math.random()*6;           // diámetro "real" oculto, 22–28 mm
+dBase = Math.round(dBase/0.05)*0.05;
+var dTrue = dBase;
+var medidas = [null,null,null,null,null];
+var incertidumbres = [0.05,0.05,0.05,0.05,0.05];
+var medActual = 0;
+
+// Posición del nonio en el canvas del calibre (en mm, rango 15–35)
+var dNonio = 24.00;   // valor que muestra el nonio (lo mueve el alumno)
+
+// ── Escala del calibre ─────────────────────────────────────────────
+// DISEÑO: el nonio queda FIJO en el canvas; la escala principal se mueve.
+// Así nunca sale nada de pantalla.
+var CAL_W = 520, CAL_H = 170;
+var SCPX = 20;         // px por mm — escala grande y legible
+var XV0  = 110;        // posición fija del "0" del nonio en el canvas (px)
+
+// Posición canvas de un valor v en la escala principal, dado el nonio en dNonio
+function mainX(v){ return XV0 + (v - dNonio) * SCPX; }
+
+// ── Dibuja la esfera ──────────────────────────────────────────────
+var PX_MM = 2.8;
+function drawSphere(){
+  var c = document.getElementById('sphere-canvas');
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  var cx=160, cy=78;
+  var r = dTrue * PX_MM / 2;
+
+  var gr = ctx.createRadialGradient(cx-r*.3,cy-r*.3,r*.05,cx,cy,r);
+  gr.addColorStop(0,'#a29bfe'); gr.addColorStop(1,'#6c5ce7');
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,2*Math.PI);
+  ctx.fillStyle=gr; ctx.fill();
+  ctx.strokeStyle='#5a4fcf'; ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx-r*.28,cy-r*.28,r*.17,0,2*Math.PI);
+  ctx.fillStyle='rgba(255,255,255,.38)'; ctx.fill();
+
+  // Línea de diámetro
+  ctx.setLineDash([4,3]);
+  ctx.strokeStyle='rgba(180,180,180,.6)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(cx-r,cy); ctx.lineTo(cx+r,cy); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Mordazas según nonio
+  var jHalf = dNonio * PX_MM / 2;
+  var jawH = r * .75;
+  ctx.strokeStyle='#c0392b'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(cx-jHalf,cy-jawH); ctx.lineTo(cx-jHalf,cy+jawH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+jHalf,cy-jawH); ctx.lineTo(cx+jHalf,cy+jawH); ctx.stroke();
+
+  // Flechas
+  [[cx-jHalf,-1],[cx+jHalf,1]].forEach(function(p){
+    ctx.beginPath();
+    ctx.moveTo(p[0],cy-jawH-7);
+    ctx.lineTo(p[0]-5*p[1],cy-jawH+2);
+    ctx.lineTo(p[0]+5*p[1],cy-jawH+2);
+    ctx.closePath(); ctx.fillStyle='#c0392b'; ctx.fill();
+  });
+
+  // Sin indicador de alineación — el alumno debe leer el calibre por sí mismo
+}
+
+// ── Dibuja el calibre (escala grande, sin línea de coincidencia) ──
+// ── Dibuja el calibre — nonio FIJO, escala principal se desplaza ──
+function drawCaliper(){
+  var c = document.getElementById('caliper-canvas');
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0,0,CAL_W,CAL_H);
+
+  var mainTop=38, mainH=24, mainBot=mainTop+mainH;
+  var gap=3;
+  var nonioTop=mainBot+gap, nonioH=24, nonioBot=nonioTop+nonioH;
+  var markD=22, markU=22;
+
+  // ─── ESCALA PRINCIPAL (gris, se desplaza con dNonio) ─────────────
+  ctx.fillStyle='#e0e0e0';
+  ctx.fillRect(0, mainTop, CAL_W, mainH);
+  ctx.strokeStyle='#aaa'; ctx.lineWidth=1;
+  ctx.strokeRect(0, mainTop, CAL_W, mainH);
+
+  for(var v=0; v<=50; v+=0.5){
+    var x = mainX(v);
+    if(x < -5 || x > CAL_W+5) continue;
+    var isMm  = (Math.abs(v - Math.round(v)) < 0.01);
+    var is5mm = (isMm && Math.abs(v%5) < 0.01);
+    var is05  = (!isMm);
+    var hk = is5mm ? markD : (isMm ? markD*0.65 : markD*0.35);
+    ctx.beginPath(); ctx.moveTo(x, mainBot); ctx.lineTo(x, mainBot+hk);
+    ctx.strokeStyle = is5mm ? '#222' : (isMm ? '#555' : '#999');
+    ctx.lineWidth   = is5mm ? 2.2 : (isMm ? 1.3 : 0.7);
+    ctx.stroke();
+    if(is5mm){
+      ctx.font='bold 13px Arial'; ctx.fillStyle='#111'; ctx.textAlign='center';
+      ctx.fillText(v, x, mainTop-5);
+    } else if(isMm){
+      ctx.font='10px Arial'; ctx.fillStyle='#444'; ctx.textAlign='center';
+      ctx.fillText(v, x, mainTop-3);
+    }
+  }
+  ctx.font='10px Arial'; ctx.fillStyle='#555'; ctx.textAlign='left';
+  ctx.fillText('mm', 3, mainBot+16);
+
+  // ─── NONIO (azul, posición fija en XV0) ──────────────────────────
+  var nDiv=20, nLen=nDiv*0.95*SCPX;
+  ctx.fillStyle='rgba(41,128,185,0.13)';
+  ctx.fillRect(XV0, nonioTop, nLen, nonioH);
+  ctx.strokeStyle='#2980b9'; ctx.lineWidth=1.5;
+  ctx.strokeRect(XV0, nonioTop, nLen, nonioH);
+
+  // Escala del nonio: 20 divisiones etiquetadas de 0 a 10 (paso 0,5)
+  // Números en 0, 5, 10 (divisiones 0, 10, 20)
+  for(var i=0; i<=nDiv; i++){
+    var nx    = XV0 + i*0.95*SCPX;
+    var label = i/2;                          // 0, 0.5, 1, 1.5 … 10
+    var isMaj = (i===0||i===10||i===20);      // 0, 5, 10
+    var isMed = (i%2===0);                    // enteros: 0,1,2…10
+    var hn    = isMaj ? markU : (isMed ? markU*0.65 : markU*0.35);
+    ctx.beginPath(); ctx.moveTo(nx, nonioTop); ctx.lineTo(nx, nonioTop-hn);
+    ctx.strokeStyle = isMaj ? '#1a5276' : '#2980b9';
+    ctx.lineWidth   = isMaj ? 2.2 : (isMed ? 1.1 : 0.7);
+    ctx.stroke();
+    if(isMaj){
+      ctx.font='bold 11px Arial'; ctx.fillStyle='#1a5276'; ctx.textAlign='center';
+      ctx.fillText(label, nx, nonioBot+13);
+    }
+  }
+
+  // ─── Triángulo indicador del "0" del nonio ────────────────────────
+  ctx.beginPath();
+  ctx.moveTo(XV0, mainTop-1);
+  ctx.lineTo(XV0-7, mainTop-15);
+  ctx.lineTo(XV0+7, mainTop-15);
+  ctx.closePath();
+  ctx.fillStyle='#2980b9'; ctx.fill();
+
+  ctx.font='9px Arial'; ctx.fillStyle='#1a5276'; ctx.textAlign='left';
+  ctx.fillText('0 del nonio', XV0+9, mainTop-5);
+  ctx.font='9px Arial'; ctx.fillStyle='#555'; ctx.textAlign='left';
+  ctx.fillText('Lee el mm bajo el ▲, luego la división del nonio que coincida con la escala (×0,05 mm)', 4, CAL_H-4);
+}
+
+// ── Drag en el canvas del calibre ─────────────────────────────────
+var dragging=false, dragStartX=0, dragStartD=0;
+
+document.getElementById('caliper-canvas').addEventListener('mousedown',function(e){
+  dragging=true;
+  dragStartX = e.offsetX;
+  dragStartD = dNonio;
+});
+document.addEventListener('mousemove',function(e){
+  if(!dragging) return;
+  var c=document.getElementById('caliper-canvas');
+  var rect=c.getBoundingClientRect();
+  var scaleX=CAL_W/rect.width;
+  var dx=(e.clientX - rect.left)*scaleX - dragStartX;
+  // El nonio es fijo; arrastrar a la DERECHA equivale a abrir más el calibre (d aumenta)
+  var newD = dragStartD + dx/SCPX;
+  newD = Math.max(15, Math.min(35, newD));
+  newD = Math.round(newD/0.05)*0.05;
+  dNonio = newD;
+  drawCaliper();
+  drawSphere();
+});
+document.addEventListener('mouseup',function(){ dragging=false; });
+
+// Touch support
+document.getElementById('caliper-canvas').addEventListener('touchstart',function(e){
+  e.preventDefault();
+  dragging=true;
+  var c=document.getElementById('caliper-canvas');
+  var rect=c.getBoundingClientRect();
+  var scaleX=CAL_W/rect.width;
+  dragStartX=(e.touches[0].clientX-rect.left)*scaleX;
+  dragStartD=dNonio;
+},{passive:false});
+document.addEventListener('touchmove',function(e){
+  if(!dragging) return;
+  var c=document.getElementById('caliper-canvas');
+  var rect=c.getBoundingClientRect();
+  var scaleX=CAL_W/rect.width;
+  var dx=(e.touches[0].clientX-rect.left)*scaleX - dragStartX;
+  var newD=dragStartD+dx/SCPX;
+  newD=Math.max(15,Math.min(35,newD));
+  newD=Math.round(newD/0.05)*0.05;
+  dNonio=newD;
+  drawCaliper(); drawSphere();
+},{passive:true});
+document.addEventListener('touchend',function(){ dragging=false; });
+
+// ── Actualiza display del deslizador de lectura ───────────────────
+function updateReading(){
+  var v = parseFloat(document.getElementById('slider-read').value);
+  document.getElementById('val-read').textContent = v.toFixed(2).replace('.',',')+' mm';
+}
+
+// ── Seleccionar medida: toma la lectura del alumno (no del nonio) ─
+var medidaTemporal = null;
+function seleccionarMedida(){
+  if(medActual>=5){alert('Ya tienes 5 medidas.');return;}
+  // Usa el valor del deslizador de lectura, no la posición del nonio
+  medidaTemporal = parseFloat(document.getElementById('slider-read').value);
+  // Mostrar panel de incertidumbre
+  document.getElementById('inc-panel').style.display='block';
+  document.getElementById('slider-inc').value='0.05';
+  document.getElementById('inc-val').textContent='0,05 mm';
+  document.getElementById('btn-sel').disabled=true;
+  document.getElementById('btn-girar').disabled=true;
+  document.getElementById('meas-info').innerHTML=
+    'Medida leída: <b>'+dNonio.toFixed(2)+'</b> mm · ahora selecciona la incertidumbre';
+}
+
+// ── Confirmar medida con incertidumbre ────────────────────────────
+function confirmarMedida(){
+  var inc = parseFloat(document.getElementById('slider-inc').value);
+  medidas[medActual] = medidaTemporal;
+  var i = medActual+1;
+  document.getElementById('v'+i).textContent = medidaTemporal.toFixed(2)+' mm';
+  // Guardar incertidumbre directamente
+  incertidumbres[medActual] = inc;
+  document.getElementById('inc'+i+'v').textContent = inc.toFixed(2)+' mm';
+  medActual++;
+  document.getElementById('med-num').textContent=(medActual<5?medActual+1:'✔');
+  document.getElementById('inc-panel').style.display='none';
+  document.getElementById('btn-sel').disabled=false;
+  document.getElementById('btn-girar').disabled=false;
+  if(medActual<5){
+    document.getElementById('meas-info').innerHTML=
+      'Medida <b>'+medActual+'</b> guardada · pulsa "Girar esfera" para la siguiente';
+  } else {
+    document.getElementById('meas-info').innerHTML='<b>¡5 medidas completadas!</b>';
+    document.getElementById('btn-sel').style.display='none';
+    document.getElementById('btn-girar').style.display='none';
+    document.getElementById('card-res').style.display='block';
+    calcular();
+  }
+}
+
+// ── Girar esfera — reset nonio a posición inicial ─────────────────
+function girarEsfera(){
+  if(medActual>=5) return;
+  dTrue = dBase + (Math.random()-0.5)*0.40;
+  dTrue = Math.round(dTrue/0.05)*0.05;
+  dNonio = 15.00;   // reset: nonio vuelve al inicio
+  document.getElementById('slider-read').value = '15.00';
+  document.getElementById('val-read').textContent = '15,00 mm';
+  drawSphere(); drawCaliper();
+  document.getElementById('meas-info').innerHTML=
+    'Esfera girada 🔄 — ajusta el nonio para la medida <b>'+(medActual+1)+'</b>';
+}
+
+// ── Redondeo a n cifras significativas ────────────────────────────
+function roundSF(x,n){
+  if(x===0) return 0;
+  var d=Math.ceil(Math.log10(Math.abs(x)));
+  return Math.round(x*Math.pow(10,n-d))/Math.pow(10,n-d);
+}
+
+// ── Calcular resultados ───────────────────────────────────────────
+function calcular(){
+  var sum=0;
+  for(var i=0;i<5;i++) sum+=medidas[i];
+  var media=sum/5;
+  var varStat=0;
+  for(var i=0;i<5;i++) varStat+=Math.pow(medidas[i]-media,2);
+  var sm=Math.sqrt(varStat/20);
+  var sumInc=0;
+  for(var i=0;i<5;i++) sumInc+=incertidumbres[i];
+  var dTotal=Math.sqrt(sm*sm+Math.pow(sumInc/5,2));
+  var V=Math.PI/6*Math.pow(media/10,3);
+  var dV=3*(dTotal/media)*V;
+  document.getElementById('res-d').textContent=media.toFixed(3)+' mm';
+  document.getElementById('res-s').textContent=sm.toFixed(3)+' mm';
+  document.getElementById('res-dd').textContent=dTotal.toFixed(3)+' mm';
+  document.getElementById('res-v').textContent=V.toFixed(4)+' cm³';
+  document.getElementById('res-dv').textContent=dV.toFixed(4)+' cm³';
+  window._V=V; window._dV=dV;
+  actualizarCS();
+}
+
+function actualizarCS(){
+  if(!window._V) return;
+  var sfV=parseInt(document.getElementById('sf-v').value);
+  var sfdV=parseInt(document.getElementById('sf-dv').value);
+  document.getElementById('sf-vv').textContent=sfV;
+  document.getElementById('sf-dvv').textContent=sfdV;
+  document.getElementById('vred').textContent=roundSF(window._V,sfV);
+  document.getElementById('dvred').textContent=roundSF(window._dV,sfdV);
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+drawSphere();
+drawCaliper();
+</script>
+</body>
+</html>
